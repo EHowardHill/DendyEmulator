@@ -1,10 +1,13 @@
 package com.cinemint.dendyemulator2
 
+import android.annotation.SuppressLint
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
+import androidx.annotation.RequiresApi
 import com.swordfish.libretrodroid.GLRetroView
 import com.swordfish.libretrodroid.GLRetroViewData
 import com.swordfish.libretrodroid.Variable
@@ -16,6 +19,8 @@ class MainActivity : ComponentActivity() {
     private val coreFileName = "mgba_libretro_android.so"
     private val romFileName = "starlight.gba"
 
+    @SuppressLint("SetWorldReadable")
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
