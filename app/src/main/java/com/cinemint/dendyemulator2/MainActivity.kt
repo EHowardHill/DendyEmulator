@@ -135,13 +135,11 @@ class MainActivity : ComponentActivity() {
                 shader = GLRetroView.SHADER_DEFAULT
                 android.util.Log.d("MainActivity", "Setting variables...")
                 variables = arrayOf(
-                    Variable("mgba_solar_sensor_level", "0"),
-                    Variable("mgba_allow_opposing_directions", "no"),
-                    Variable("mgba_gb_model", "Autodetect"),
-                    Variable("mgba_use_bios", "OFF"),
-                    Variable("mgba_skip_bios", "OFF"),
-                    Variable("mgba_idle_optimization", "Remove Known"),
-                    Variable("mgba_frameskip", "0")
+                    Variable("mgba_use_bios", "OFF"),         // Already set, but included for completeness
+                    Variable("mgba_gb_model", "Autodetect"),  // Game Boy model detection
+                    Variable("mgba_skip_bios", "OFF"),        // Skip BIOS intro if applicable
+                    Variable("mgba_frameskip", "0"),          // Disable frame skipping
+                    Variable("mgba_audio_low_pass_filter", "disabled")  // Audio setting example
                 )
                 android.util.Log.d("MainActivity", "GLRetroViewData created successfully")
             }
