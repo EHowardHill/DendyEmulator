@@ -16,7 +16,7 @@ import java.io.File
 class MainActivity : ComponentActivity() {
 
     private lateinit var retroView: GLRetroView
-    private val coreFileName = "mgba_libretro_android.so"
+    private val coreFileName = "mgba.so"
     private val romFileName = "starlight.gba"
 
     @SuppressLint("SetWorldReadable")
@@ -27,15 +27,13 @@ class MainActivity : ComponentActivity() {
         try {
             // Copy ROM from resources to internal storage
             val romFile = File(filesDir, romFileName)
-            if (!romFile.exists()) {
-                resources.openRawResource(R.raw.starlight).use { input ->
-                    romFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
+            resources.openRawResource(R.raw.starlight).use { input ->
+                romFile.outputStream().use { output ->
+                    input.copyTo(output)
                 }
-                // Set proper permissions
-                romFile.setReadable(true, false)
             }
+            // Set proper permissions
+            romFile.setReadable(true, false)
 
             // Validate ROM file
             if (!romFile.exists() || !romFile.canRead()) {
@@ -45,29 +43,16 @@ class MainActivity : ComponentActivity() {
                 throw IllegalStateException("ROM file is empty")
             }
 
-            // Copy core file
+            // Load core file
             val coreFile = File(filesDir, coreFileName)
-            if (!coreFile.exists()) {
-                // First, check which architecture-specific core to use
-                val coreResourceId = when {
-                    Build.SUPPORTED_ABIS.contains("arm64-v8a") -> {
-                        android.util.Log.d("MainActivity", "Using arm64-v8a core")
-                        R.raw.mgba_libretro_android
-                    }
-                    else -> {
-                        throw IllegalStateException("Unsupported architecture: ${Build.SUPPORTED_ABIS.joinToString()}")
-                    }
+            resources.openRawResource(R.raw.mgba).use { input ->
+                coreFile.outputStream().use { output ->
+                    input.copyTo(output)
                 }
-
-                resources.openRawResource(coreResourceId).use { input ->
-                    coreFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
-                }
-                // Set proper permissions
-                coreFile.setReadable(true, false)
-                coreFile.setExecutable(true, false)
             }
+            // Set proper permissions
+            coreFile.setReadable(true, false)
+            coreFile.setExecutable(true, false)
 
             // Validate core file
             if (!coreFile.exists() || !coreFile.canRead()) {
@@ -103,22 +88,35 @@ class MainActivity : ComponentActivity() {
                 android.util.Log.d("MainActivity", "ROM header: ${romHeader.joinToString { "%02X".format(it) }}")
 
                 try {
-                    val coreHeader = coreFile.inputStream().use { it.readNBytes(16) }
+                    val coreHeader = coreFile.inputStream().use { it.readNBytes(64) } // Read more bytes
+                    android.util.Log.d("MainActivity", "Full ELF header: ${coreHeader.take(16).joinToString { "%02X".format(it) }}")
+                    android.util.Log.d("MainActivity", "File size on disk: ${coreFile.length()}")
+
+                    // Verify the magic bytes
                     val elfMagic = coreHeader.sliceArray(0..3)
-                    val expectedElf = byteArrayOf(0x7F, 0x45, 0x4C, 0x46) // ELF magic
+                    val expectedElf = byteArrayOf(0x7F, 0x45, 0x4C, 0x46)
+                    android.util.Log.d("MainActivity", "ELF Magic: ${elfMagic.joinToString { "%02X".format(it) }}")
+                    android.util.Log.d("MainActivity", "Expected:  ${expectedElf.joinToString { "%02X".format(it) }}")
 
-                    if (!elfMagic.contentEquals(expectedElf)) {
-                        throw IllegalStateException("Core file is not a valid ELF file")
+                    if (elfMagic.contentEquals(expectedElf)) {
+                        val elfClass = coreHeader[4]
+                        val elfData = coreHeader[5]
+                        val elfVersion = coreHeader[6]
+                        val elfOsAbi = coreHeader[7]
+
+                        android.util.Log.d("MainActivity", "ELF class: $elfClass (1=32bit, 2=64bit)")
+                        android.util.Log.d("MainActivity", "ELF data: $elfData (1=little endian, 2=big endian)")
+                        android.util.Log.d("MainActivity", "ELF version: $elfVersion")
+                        android.util.Log.d("MainActivity", "ELF OS/ABI: $elfOsAbi")
+
+                        // Check machine type (bytes 18-19)
+                        if (coreHeader.size >= 20) {
+                            val machine = (coreHeader[19].toInt() and 0xFF shl 8) or (coreHeader[18].toInt() and 0xFF)
+                            android.util.Log.d("MainActivity", "ELF machine type: $machine (183=ARM64, 40=ARM32)")
+                        }
                     }
-
-                    // Check architecture (byte 4 indicates 32/64 bit, byte 5 indicates endianness)
-                    val elfClass = coreHeader[4] // 1 = 32-bit, 2 = 64-bit
-                    val elfData = coreHeader[5]  // 1 = little endian, 2 = big endian
-
-                    android.util.Log.d("MainActivity", "ELF class: $elfClass, data: $elfData")
                 } catch (e: Exception) {
-                    android.util.Log.e("MainActivity", "Error validating core file", e)
-                    throw e
+                    android.util.Log.e("MainActivity", "Error reading detailed ELF info", e)
                 }
 
             } catch (e: Exception) {
@@ -140,7 +138,7 @@ class MainActivity : ComponentActivity() {
                     Variable("mgba_solar_sensor_level", "0"),
                     Variable("mgba_allow_opposing_directions", "no"),
                     Variable("mgba_gb_model", "Autodetect"),
-                    Variable("mgba_use_bios", "ON"),
+                    Variable("mgba_use_bios", "OFF"),
                     Variable("mgba_skip_bios", "OFF"),
                     Variable("mgba_idle_optimization", "Remove Known"),
                     Variable("mgba_frameskip", "0")
