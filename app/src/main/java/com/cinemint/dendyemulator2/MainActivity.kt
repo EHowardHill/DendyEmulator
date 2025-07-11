@@ -50,16 +50,12 @@ class MainActivity : ComponentActivity() {
             if (!coreFile.exists()) {
                 // First, check which architecture-specific core to use
                 val coreResourceId = when {
-                    android.os.Build.SUPPORTED_ABIS.contains("x86_64") -> {
-                        android.util.Log.d("MainActivity", "Using x86_64 core")
-                        R.raw.mgba_libretro_android // Make sure this is x86_64 version
-                    }
-                    android.os.Build.SUPPORTED_ABIS.contains("arm64-v8a") -> {
+                    Build.SUPPORTED_ABIS.contains("arm64-v8a") -> {
                         android.util.Log.d("MainActivity", "Using arm64-v8a core")
-                        R.raw.mgba_libretro_android // You might need a different resource for ARM
+                        R.raw.mgba_libretro_android
                     }
                     else -> {
-                        throw IllegalStateException("Unsupported architecture: ${android.os.Build.SUPPORTED_ABIS.joinToString()}")
+                        throw IllegalStateException("Unsupported architecture: ${Build.SUPPORTED_ABIS.joinToString()}")
                     }
                 }
 
@@ -106,8 +102,25 @@ class MainActivity : ComponentActivity() {
                 val romHeader = romFile.inputStream().use { it.readNBytes(4) }
                 android.util.Log.d("MainActivity", "ROM header: ${romHeader.joinToString { "%02X".format(it) }}")
 
-                val coreHeader = coreFile.inputStream().use { it.readNBytes(4) }
-                android.util.Log.d("MainActivity", "Core header (should be 7F 45 4C 46 for ELF): ${coreHeader.joinToString { "%02X".format(it) }}")
+                try {
+                    val coreHeader = coreFile.inputStream().use { it.readNBytes(16) }
+                    val elfMagic = coreHeader.sliceArray(0..3)
+                    val expectedElf = byteArrayOf(0x7F, 0x45, 0x4C, 0x46) // ELF magic
+
+                    if (!elfMagic.contentEquals(expectedElf)) {
+                        throw IllegalStateException("Core file is not a valid ELF file")
+                    }
+
+                    // Check architecture (byte 4 indicates 32/64 bit, byte 5 indicates endianness)
+                    val elfClass = coreHeader[4] // 1 = 32-bit, 2 = 64-bit
+                    val elfData = coreHeader[5]  // 1 = little endian, 2 = big endian
+
+                    android.util.Log.d("MainActivity", "ELF class: $elfClass, data: $elfData")
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Error validating core file", e)
+                    throw e
+                }
+
             } catch (e: Exception) {
                 android.util.Log.e("MainActivity", "Error reading file headers", e)
             }
@@ -119,8 +132,7 @@ class MainActivity : ComponentActivity() {
                 android.util.Log.d("MainActivity", "Setting coreFilePath...")
                 coreFilePath = coreFile.canonicalPath
                 android.util.Log.d("MainActivity", "Setting gameFilePath...")
-                // Try without setting the game path initially
-                // gameFilePath = romFile.canonicalPath
+                gameFilePath = romFile.canonicalPath
                 android.util.Log.d("MainActivity", "Setting shader...")
                 shader = GLRetroView.SHADER_DEFAULT
                 android.util.Log.d("MainActivity", "Setting variables...")
@@ -160,12 +172,8 @@ class MainActivity : ComponentActivity() {
                     // Post a delayed check to see if we're still running
                     retroView.postDelayed({
                         android.util.Log.d("MainActivity", "GLRetroView still running after 500ms")
-                        // Try loading the game after a delay
                         try {
                             android.util.Log.d("MainActivity", "Attempting to load game...")
-                            // Note: You may need to use reflection or check LibretroDroid API
-                            // for the correct method to load a game after initialization
-                            // This is a placeholder - check the actual LibretroDroid API
                         } catch (e: Exception) {
                             android.util.Log.e("MainActivity", "Error loading game", e)
                         }
